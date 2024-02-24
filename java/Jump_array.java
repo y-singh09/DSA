@@ -1,4 +1,3 @@
-package DSA;
 
 public class Jump_array {
 
