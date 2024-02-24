@@ -18,7 +18,9 @@ public class merge_interval {
 		{
 			return new int[0][0];
 		}
-		Arrays.sort(a,(m,n)->m[0]-n[0]);  // It is used to sort on the basis of m and n jaha m bara hai aur n chota
+		Arrays.sort(a,(m,n)->m[0]-n[0]);  // It is used to sort on the basis of m and n 
+							(jaha m bara hai aur n chota)
+						       m and n are values of two different interval.
 		ArrayList<int[]> list=new ArrayList<int[]>();
 		list.add(a[0]);
 		for(int i=1;i<a.length;i++)
