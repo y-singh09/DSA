@@ -4,7 +4,7 @@ class Solution {
        int a[]=new int[n];
        for(int i=0;i<n;i++)
        {
-         a[(i+k)%n]=nums[i];
+         a[(i+k)%n]=nums[i];   //Here k can be of different values according to number of elements to be rotated
        }
        for(int i=0;i<n;i++)
        {
