@@ -1,0 +1,67 @@
+import java.util.Scanner;
+import java.util.Random;
+public class QuickSort {
+    static int max=5000;
+    void quicksort(int a[],int low,int high)
+    {    int pi;
+        if(low<high)
+        {
+            pi=partition(a,low,high);
+            quicksort(a,low,pi-1);
+            quicksort(a,pi+1,high);
+
+        }
+    }
+    int partition(int a[],int low,int high)
+    {
+        int p=a[high];
+        int pi=low;
+        for(int j=low;j<high;j++)
+        {
+            if (a[j]<=p)
+       {
+                 int temp=a[j];
+                 a[j]=a[pi];
+                 a[pi]=temp;
+                    pi++;
+      }
+}
+ int temp=a[pi];
+ a[pi]=a[high];
+ a[high]=temp;
+ return pi;
+    }
+    public static void main(String[] args) {
+        int i,n,a[];
+        System.out.println("Enter the Array Size:");
+        Scanner sc = new Scanner(System.in);
+        n=sc.nextInt();
+        a=new int[max];
+        Random gen=new Random();
+        for(i=0;i<n;i++)
+        {
+            a[i]=gen.nextInt(20);
+
+        }
+        System.out.println("Array before sorting:");
+        for(i=0;i<n;i++)
+        
+            System.out.print(a[i]+"\t");
+        
+            long startTime=System.nanoTime();
+            QuickSort m=new QuickSort();
+            m.quicksort(a,0,n-1);
+            long stopTime=System.nanoTime();
+            long elapseTime=(stopTime-startTime);
+            System.out.println();
+        
+            System.out.println("Sorted Array is:");
+            for(i=1;i<=n;i++)
+          
+                System.out.print(a[i]+"\t");
+                System.out.println();
+                System.out.println("Time taken to sort array is:"+elapseTime+"nanoseconds");
+            
+    }
+    
+}
