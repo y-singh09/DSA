@@ -1,4 +1,3 @@
-package DSA;
 
 public class merge_array {
 
