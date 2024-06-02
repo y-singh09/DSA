@@ -1,0 +1,28 @@
+import java.util.*;
+public class twosum{
+    public static void main(String[] args) {
+        ArrayList<Integer> list=new ArrayList<Integer>();
+        int[] a={2,7,11,15};
+        int k=9;
+        for(int i=0;i<a.length-1;i++)
+        {
+            if(a[i]+a[i+1]==k)
+            {
+                list.add(i);
+                list.add(i+1);
+            }
+        }
+        
+        int[] arr=new int[list.size()];
+        for(int i=0;i<arr.length;i++)
+        {
+            arr[i]=list.get(i);
+        }
+        for(int i=0;i<arr.length;i++)
+        {
+            System.out.print(arr[i]+" ");
+        }
+
+    }
+}
+
