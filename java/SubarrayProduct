@@ -1,0 +1,48 @@
+import java.io.*;
+import java.util.*;
+
+  public class Main {
+
+    public static void main(String[] args) throws Exception {
+        BufferedReader br =
+            new BufferedReader(new InputStreamReader(System.in));
+        int tc = Integer.parseInt(br.readLine());
+        while (tc-- > 0) {
+            int n = Integer.parseInt(br.readLine());
+            int[] arr = new int[n];
+            String[] inputLine = br.readLine().split(" ");
+            for (int i = 0; i < n; i++) {
+                arr[i] = Integer.parseInt(inputLine[i]);
+            }
+
+            System.out.println(new Solution().maxProduct(arr, n));
+        }
+    }
+}
+class Solution {
+   
+    long maxProduct(int[] a, int n) {
+        long current=a[0];
+        long longest=a[0];
+        long min=a[0];
+        if(n==0)
+        {
+            return 0;
+        }
+       
+        for(int i=1;i<n;i++)
+        {
+             if(a[i]<0)
+        {
+            long temp=longest;
+            longest=min;
+            min=temp;
+        }
+            longest=Math.max(a[i],a[i]*longest);
+            min=Math.min(a[i],a[i]*min);
+            current=Math.max(current,longest);
+        }
+        return current;
+       
+    }
+}
