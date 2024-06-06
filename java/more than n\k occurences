@@ -1,0 +1,55 @@
+import java.io.*;
+import java.util.*;
+
+class Driverclass {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int t = sc.nextInt();
+        while (t-- > 0) {
+            int n = sc.nextInt();
+            int[] arr = new int[n];
+            for (int i = 0; i < n; i++) {
+                arr[i] = sc.nextInt();
+            }
+            int k = sc.nextInt();
+
+            System.out.println(new Solution().countOccurence(arr, n, k));
+        }
+    }
+}
+
+
+
+class Solution 
+{
+
+    public int countOccurence(int[] a, int n, int k) 
+    {
+           int threshold = n / k;
+        ArrayList<Integer> list = new ArrayList<>();
+
+   
+        int[] sortedArray = a.clone();
+        Arrays.sort(sortedArray);
+
+  
+        int i = 0;
+        while (i < n) {
+            int num = sortedArray[i];
+            int count = 0;
+
+            
+            while (i < n && sortedArray[i] == num) {
+                count++;
+                i++;
+            }
+
+          
+            if (count > threshold) {
+                list.add(num);
+            }
+        
+    }
+    return list.size();
+}
+}
