@@ -1,0 +1,36 @@
+import java.util.*;
+class Solution {
+    public static void main(String[] args) {
+        int a[]={1,2,3,4,5};
+        int k=4;
+       System.out.println( hand(a,k));
+
+    }
+    public boolean isNStraightHand(int[] a, int k) {
+        ArrayList<Integer> list=new ArrayList<>();
+        for(int i=0;i<a.length;i++)
+        {
+            list.add(a[i]);
+        }
+        Collections.sort(list);
+        while(!list.isEmpty())
+        {
+            int start=list.get(0);
+            int end=start+k;
+            for(int i=start;i<end;i++)
+            {
+                if(list.contains(i))
+                {
+                    list.remove((Integer)i);
+
+                }
+                else{
+                    return false;
+                }
+            }
+          
+        }
+        return true;
+    }
+    
+}
