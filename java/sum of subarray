@@ -1,0 +1,26 @@
+import java.util.*;
+public class sumsubarray {
+    public static void main(String[] args) {
+        int[] arr={23,2,4,6,7};
+        int k=13;
+       System.out.println(sum(arr,k));
+       
+    }
+    public static boolean sum(int[] nums, int k) {
+        if (nums.length < 2) {
+            return false;
+        }
+
+        for (int start = 0; start < nums.length - 1; start++) {
+            int sum = nums[start];
+            for (int end = start + 1; end < nums.length; end++) {
+                sum += nums[end];
+                if (sum % k == 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+}
