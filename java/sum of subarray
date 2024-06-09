@@ -24,3 +24,31 @@ public class sumsubarray {
         return false;
     }
 }
+
+
+//Another approach for this question is:---
+ time complexity O(N).
+
+
+ public static boolean subarray(int[] a,int k)
+    {
+       int b[]=new int[k];
+       int count=0,sum=0;
+       b[0]=1;
+       for(int num:a)
+       {
+        sum+=num;
+        int rem=sum%k;
+        if(rem<0)
+        {
+            rem+=k;
+        }
+        count+=b[rem];
+        b[rem]++;
+       }
+        if (count==0)
+        {
+            return false;
+        }
+        return true;
+    }
