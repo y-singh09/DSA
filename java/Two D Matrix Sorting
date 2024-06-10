@@ -1,0 +1,41 @@
+import java.util.*;
+public class Twodsorting {
+    public static void main(String[] args)
+    {
+        int a[][]={{10,20,30,40},
+        {15,25,35,45},
+        {27,29,37,48},
+        {32,33,39,50}};
+        int N=a.length;
+        sortedMatrix(N,a);
+    
+}
+static void sortedMatrix(int N, int a[][]) {
+    int b[]=new int[N*N];
+    int k=0;
+    for(int i=0;i<N;i++)
+    {
+        for(int j=0;j<N;j++)
+        {
+            b[k++]=a[i][j];
+        }
+    }
+    Arrays.sort(b);
+    k=0;
+    for(int i=0;i<N;i++)
+    {
+        for(int j=0;j<N;j++)
+        {
+            a[i][j]=b[k++];
+        }
+    }
+    for(int i=0;i<N;i++)
+    {
+        for(int j=0;j<N;j++)
+        {
+            System.out.print(a[i][j]+" ");
+        }
+        System.out.println();
+    }
+}
+}
