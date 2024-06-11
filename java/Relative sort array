@@ -1,0 +1,25 @@
+class Solution {
+    public int[] relativeSortArray(int[] a1, int[] a2) {
+      int frequency[] =new int[1001];
+      for(int num:a1)
+      {
+        frequency[num]++;
+      }
+       int a[]=new int[a1.length];
+       int k=0;
+        for (int num : a2) {
+            while (frequency[num] > 0) {
+                a[k++] = num;
+                frequency[num]--;
+            }
+        }
+        for (int i = 0; i < frequency.length; i++) {
+            while (frequency[i] > 0) {
+                a[k++] = i;
+                frequency[i]--;
+            }
+        }
+        return a;
+      
+    }
+}
