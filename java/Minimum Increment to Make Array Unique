@@ -1,0 +1,21 @@
+class Solution{
+ public int minIncrementForUnique(int[] nums){
+int count=0;
+Ararys.sort(nums);
+for(int i=0;i<nums.length;i++)
+{
+if(nums[i]<=nums[i-1])
+{
+  int increment=nums[i-1]-nums[i]+1;
+  nums[i]+=increment;
+  count+=increment;
+}
+}
+return count;
+}
+public static void main(String[] args) {
+        Solution sol = new Solution();
+        int[] nums = {3, 2, 1, 2, 1, 7};
+        System.out.println(sol.minIncrementForUnique(nums));  // Output should be 6
+    }
+}
