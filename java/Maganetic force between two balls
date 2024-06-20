@@ -1,0 +1,38 @@
+class Solution {
+    public int maxDistance(int[] a, int m) {
+            Arrays.sort(a);
+            int n=a.length;
+             int left=1;
+             int right=a[n-1]-a[0];
+             while(left<right)
+             {
+               int mid=(left+right+1)/2;
+                if (canplace(a,mid,m))
+                {
+                    left=mid;
+                }
+                else{
+                    right=mid-1;
+                }
+             }
+             return left;
+    }
+   public boolean canplace(int[]a,int min,int m){
+    int count=1;
+   int last=a[0];
+    for(int i=1;i<a.length;i++)
+    {
+        if(a[i]-last>=min)
+        {
+            count++;
+            last=a[i];
+        }
+        if(count==m)
+        {
+            return true;
+        }
+      
+    }
+        return false;
+   }
+}
