@@ -1,0 +1,23 @@
+class Solution {
+    public int numberOfSubarrays(int[] a, int k) {
+        return nice(a,k)-nice(a,k-1);
+    }
+    public int nice(int a[],int k)
+    {
+        int sum=0;
+        int count=0;
+        int l=0,r=0;
+        while(r<a.length)
+        {
+             sum+=a[r]%2;
+             while(sum>k)
+             {
+                sum-=a[l]%2;
+                l++;
+             }
+             count=count+(r-l+1);
+             r++;
+        }
+        return count;
+    }
+}
