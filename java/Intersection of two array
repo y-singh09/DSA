@@ -1,0 +1,34 @@
+class Solution {
+    public int[] intersect(int[] a, int[] b) {
+        int m=a.length;
+        int n=b.length;
+      ArrayList<Integer> list=new ArrayList<Integer>();
+
+        Arrays.sort(a);
+        Arrays.sort(b);
+        int i=0,j=0;
+        while(i<m && j<n)
+        {
+            if(a[i]<b[j])
+            {
+                i++;
+            }
+            else if(b[j]<a[i])
+            {
+                j++;
+            }
+            else{
+                list.add(a[i]);
+                i++;
+                j++;
+            }
+        }
+        int[] c=new int[list.size()];
+        int k=0;
+        for(int num:list)
+        {
+            c[k++]=num;
+        }
+        return c;
+    }
+}
