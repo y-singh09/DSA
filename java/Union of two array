@@ -1,0 +1,30 @@
+import java.util.*;
+public class union_array {
+    public static void main(String[] args) {
+        int [] a={1,2,3,4,5};
+        int[] b={1,2,3};
+        union(a,b);
+    }
+    public static void union(int a[],int b[])
+    {
+        ArrayList<Integer> list=new ArrayList<>();
+        for(int num:a)
+        {
+            if(!list.contains(num))
+            {
+                list.add(num);
+            }
+        }
+        for(int num:b)
+        {
+            if(!list.contains(num))
+            {
+                list.add(num);
+            }
+        }
+        for(int num:list)
+        {
+            System.out.print(num+" ");
+        }
+    }
+}
