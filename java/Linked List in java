@@ -1,0 +1,107 @@
+
+
+public class Linked_list {
+   static node head;
+   static node tail;
+    class node{
+        String data;
+        node next;
+        node(String data)
+        {
+            this.data=data;
+            this.next=null;
+        }
+    }
+    public static void main(String[] args) {
+        Linked_list list=new Linked_list();
+        list.addfirst("Yuvi");
+        list.addfirst("is");
+        list.addfirst("Rockstar");
+        list.addlast("Yuvi");
+        list.addlast("is");
+        list.addlast("Rockstar");
+        list.deletefirst();
+        list.deletefirst();
+        list.deletefirst();
+        list.deletelast();
+        list.deletelast();
+        list.deletelast();
+      
+
+    }
+    public void addfirst(String data)
+    {
+        node node=new node(data);
+        if(head==null)
+        {
+            head=node;
+            return;
+        }
+        node.next=head;
+        head=node;
+        return;
+    }
+    public void addlast(String data)
+    {
+        node node =new node(data);
+        if(head==null)
+        {
+            head=node;
+            return;
+        }
+        else{
+           node current=head;
+           while(current.next!=null)
+           {
+               current=current.next;
+           }
+           current.next=node;
+           return;
+        }
+    }
+    public void deletefirst()
+    {
+        if(head==null)
+        {
+            System.out.println("List is Empty");
+            return;
+        }
+        head=head.next; 
+        return;
+    }
+    public void deletelast()
+    {
+        if(head==null)
+        {
+            System.out.println("List is Empty");
+            return;
+        }
+        if(head.next==null)
+        {
+            head=null;
+            return;
+        }
+        node temp=head;
+        node last=temp.next;
+        while(last.next!=null)
+        {
+            last=last.next;
+            temp=temp.next;
+        }
+        temp.next=null;
+        return;
+
+
+    }
+    public static void print()
+    {
+        node temp;
+        temp=head;
+        while(temp!=null)
+        {
+            System.out.print(temp.data+" ");
+            temp=temp.next;
+        }
+
+    }
+}
