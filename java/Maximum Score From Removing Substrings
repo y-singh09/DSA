@@ -1,0 +1,42 @@
+class Solution {
+    public int maximumGain(String s, int x, int y) {
+        int ans = 0;
+        StringBuilder str = new StringBuilder(s);
+        int i = 0;
+        String t1,t2;
+       if(x>=y)
+       {
+        t1="ab";
+        t2="ba";
+       }
+       else{
+        t1="ba";
+        t2="ab";
+       }
+        int first = Math.max(x, y);
+        int second = Math.min(x, y); 
+       
+        ans += removeSubstrings(str, t1, first);
+        ans += removeSubstrings(str, t2, second);
+
+        return ans;
+    }
+
+    private int removeSubstrings(StringBuilder str, String target, int points) {
+        int count = 0;
+        int i = 0;
+
+        while (i < str.length() - 1) {
+            if (str.charAt(i) == target.charAt(0) && str.charAt(i + 1) == target.charAt(1)) {
+                str.delete(i, i + 2);
+                count += points;
+                
+                if (i > 0) i--;
+            } else {
+                i++;
+            }
+        }
+
+        return count;
+    }
+}
