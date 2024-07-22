@@ -1,0 +1,17 @@
+class Solution {
+    public String[] sortPeople(String[] names, int[] heights) {
+        int n=heights.length;
+       Integer res[]=new Integer[n];
+        for(int i=0;i<n;i++)
+        {
+            res[i]=i;
+        }
+        Arrays.sort(res,(i,j)->heights[j]-heights[i]);
+        String str[]=new String[names.length];
+        for(int i=0;i<str.length;i++)
+        {
+            str[i]=names[res[i]];
+        }
+        return str;
+    }
+}
