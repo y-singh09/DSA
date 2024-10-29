@@ -1,0 +1,107 @@
+class Solution {
+    public List<List<String>> solveNQueens(int n) {
+        List<List<String>> list=new ArrayList<>();
+        char[][] ans=new char[n][n];
+        for(int i=0;i<n;i++)
+        {
+            for(int j=0;j<n;j++)
+            {
+                ans[i][j]='.';
+            }
+        }
+        queens(list,0,n,ans);
+        return list;
+    }
+    public void queens(List<List<String>> list,int row,int n,char[][] ans)
+    {
+     if(row==n)
+     {
+        ArrayList<String> output=new ArrayList<>();
+        for(char[] num:ans)
+        {
+            output.add(new String(num));
+        }
+        list.add(output);
+        return;
+     }
+
+       for(int j=0;j<n;j++)
+       {
+        if(issafe(ans,row,j,n))
+        {
+            ans[row][j]='Q';
+             queens(list,row+1,n,ans);
+            ans[row][j]='.';
+        }
+       }
+
+    }
+    public static boolean issafe(char[][] ans,int row,int col,int n)
+    {
+        for(int j=0;j<n;j++)
+        {
+            if(ans[row][j]=='Q')
+            {
+                return false;
+            }
+        }
+
+        for(int i=0;i<n;i++)
+        {
+            if(ans[i][col]=='Q')
+            {
+                return false;
+            }
+        }
+
+        int i=row;
+        int j= col;
+        while(i>=0 && j<n)
+        {
+            if(ans[i][j]=='Q')
+            {
+                return false;
+            }
+            i--;
+            j++;
+        }
+
+        i=row;
+        j=col;
+         while(i<n && j>=0)
+        {
+            if(ans[i][j]=='Q')
+            {
+                return false;
+            }
+            i++;
+            j--;
+        }
+
+         i=row;
+        j=col;
+         while(i<n && j<n)
+        {
+            if(ans[i][j]=='Q')
+            {
+                return false;
+            }
+            i++;
+            j++;
+        }
+
+
+         i=row;
+        j=col;
+         while(i>=0 && j>=0)
+        {
+            if(ans[i][j]=='Q')
+            {
+                return false;
+            }
+            i--;
+            j--;
+        }
+        return true;
+    }
+}
