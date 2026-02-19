@@ -1,0 +1,1125 @@
+import json
+import re
+from typing import Optional, Tuple, List, Dict, Any
+ 
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+from jsonschema import Draft7Validator
+ 
+# --- Cloud SDKs ---
+from google.cloud import bigquery
+from vertexai import init as vertex_init
+from vertexai.generative_models import GenerativeModel
+ 
+# ==============================
+# Streamlit page configuration
+# ==============================
+st.set_page_config(page_title="Conversational NL → Viz, KPI & QA (BigQuery + Gemini)", layout="wide")
+st.title("💬 NL → Viz, KPI & QA (Conversational)")
+ 
+# ==============================
+# Safe helpers (dataset/table listing & SQL)
+# ==============================
+from conversation_state import (
+    init_state,
+    update_chart_state,
+    update_kpi_state,
+    get_state
+)
+
+init_state()
+
+def list_datasets_safe(project_id: str) -> List[str]:
+    """Return dataset ids for a project. On error, return []."""
+    try:
+        client = bigquery.Client(project=project_id)
+        return [d.dataset_id for d in client.list_datasets(project=project_id)]
+    except Exception as e:
+        st.warning(f"Could not list datasets: {e}")
+        return []
+ 
+def list_tables_safe(project_id: str, dataset_id: str) -> List[str]:
+    """Return table ids for a dataset. On error, return []."""
+    try:
+        client = bigquery.Client(project=project_id)
+        ds_ref = f"{project_id}.{dataset_id}"
+        return [t.table_id for t in client.list_tables(ds_ref)]
+    except Exception as e:
+        st.warning(f"Could not list tables for {dataset_id}: {e}")
+        return []
+ 
+_SELECT_ONLY = re.compile(r"^\s*select\b", re.IGNORECASE | re.DOTALL)
+ 
+def is_safe_select_sql(sql: str) -> bool:
+    s = sql.strip()
+    if ";" in s.rstrip(";"):
+        return False
+    if not _SELECT_ONLY.match(s):
+        return False
+    forbidden = [" insert ", " update ", " delete ", " drop ", " create ", " alter ",
+                 " grant ", " revoke ", " merge ", " call ", " exec ", " truncate "]
+    s_low = f" {s.lower()} "
+    if any(tok in s_low for tok in forbidden):
+        return False
+    return True
+ 
+def run_sql(sql: str, project: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    try:
+        if not is_safe_select_sql(sql):
+            return None, "Rejected: Only single-statement SELECT queries are allowed."
+        bq = bigquery.Client(project=project)
+        df_sql = bq.query(sql).to_dataframe()
+        return df_sql, None
+    except Exception as e:
+        return None, f"SQL error: {e}"
+ 
+# ==============================
+# 👉 Dimension/Measure inference with ID/number name rule
+# ==============================
+_ID_OR_NUMBER_IN_NAME = re.compile(r"(id\b)|(\d)", re.IGNORECASE)
+ 
+def infer_dims_meas(df: pd.DataFrame) -> Tuple[List[str], List[str]]:
+    """
+    Dimensions:
+      - object/categorical/bool/datetime
+      - OR column name contains 'id' (case-insensitive, boundary) OR any digit.
+    Measures:
+      - numeric columns NOT captured as Dimensions above.
+    """
+    dims: List[str] = []
+    meas: List[str] = []
+ 
+    for c in df.columns:
+        s = df[c]
+        name_has_id_or_num = bool(_ID_OR_NUMBER_IN_NAME.search(str(c)))
+        is_catlike = (
+            pd.api.types.is_bool_dtype(s)
+            or pd.api.types.is_object_dtype(s)
+            or pd.api.types.is_categorical_dtype(s)
+            or pd.api.types.is_datetime64_any_dtype(s)
+        )
+        is_numeric = pd.api.types.is_numeric_dtype(s)
+ 
+        # Dimension if categorical OR name rule matches
+        if is_catlike or name_has_id_or_num:
+            dims.append(c)
+        # Measure if numeric and not already counted as dimension via name rule
+        elif is_numeric:
+            meas.append(c)
+        # Otherwise, leave it out
+    return dims, meas
+ 
+# ==============================
+# Sidebar: Cloud setup & dataset/table picker + Quick Explore controls
+# ==============================
+with st.sidebar:
+    st.header("🔧 Cloud Settings")
+    PROJECT_ID = st.text_input("GCP Project ID", value="vf-grp-gbissdbx-dev-1")
+    LOCATION = st.text_input("Vertex AI Location", value="us-central1")
+    MODEL_ID = st.text_input("Gemini Model ID", value="gemini-2.5-flash")
+ 
+    if st.button("Connect to Vertex AI"):
+        try:
+            vertex_init(project=PROJECT_ID, location=LOCATION)
+            st.session_state["_gemini_model"] = GenerativeModel(MODEL_ID)
+            st.success(f"Connected to {MODEL_ID} in {LOCATION}")
+        except Exception as e:
+            st.error(f"Vertex AI init/model error: {e}")
+ 
+    st.divider()
+    st.header("🗄️ BigQuery Source")
+ 
+    # Let user bypass auto-listing if metadata/ADC is tricky
+    disable_autolist = st.checkbox("Disable auto-list (use Manual FQN only)", value=False)
+ 
+    datasets_options = ["— Select —"]
+    if not disable_autolist:
+        datasets_options += list_datasets_safe(PROJECT_ID)
+    selected_dataset = st.selectbox("Dataset (auto-list)", options=datasets_options, index=0)
+ 
+    tables_options: List[str] = ["— Select —"]
+    if (not disable_autolist) and selected_dataset not in (None, "", "— Select —"):
+        tables_options += list_tables_safe(PROJECT_ID, selected_dataset)
+ 
+    selected_table = st.selectbox("Table (auto-list)", options=tables_options, index=0)
+ 
+    st.caption("Or set a manual Fully Qualified Name (FQN): project.dataset.table")
+    manual_fqn = st.text_input(
+        "Manual FQN override",
+        value=st.session_state.get("manual_fqn", "vf-grp-gbissdbx-dev-1.KarthikRudrapati.Sales_Sample")
+    )
+    limit_rows = st.number_input("Max rows to load (for preview/client-side ops)", 100, 200000, 3000, step=100)
+ 
+    def _resolve_fqn() -> Optional[str]:
+        if (not disable_autolist) and selected_dataset not in (None, "", "— Select —") \
+           and selected_table not in (None, "", "— Select —"):
+            return f"{PROJECT_ID}.{selected_dataset}.{selected_table}"
+        if manual_fqn and "." in manual_fqn:
+            return manual_fqn.strip()
+        return None
+ 
+    resolved_fqn = _resolve_fqn()
+    if resolved_fqn:
+        st.session_state["manual_fqn"] = resolved_fqn
+ 
+    if st.button("Load Data"):
+        fqn = _resolve_fqn()
+        if not fqn:
+            st.error("Select a dataset & table or provide a valid manual FQN.")
+        else:
+            try:
+                bq = bigquery.Client(project=PROJECT_ID)
+                sql = f"SELECT * FROM `{fqn}` LIMIT {int(limit_rows)}"
+                df = bq.query(sql).to_dataframe()  # requires db-dtypes
+                st.session_state["df"] = df
+                st.session_state["active_table_fqn"] = fqn
+ 
+                # Best-effort parse datetime columns once per load
+                for c in df.columns:
+                    if ("date" in c.lower() or "time" in c.lower()) and not pd.api.types.is_datetime64_any_dtype(df[c]):
+                        try:
+                            df[c] = pd.to_datetime(df[c], errors="ignore")
+                        except Exception:
+                            pass
+ 
+                st.success(f"Loaded {df.shape[0]:,} rows × {df.shape[1]:,} columns from\n`{fqn}`")
+            except Exception as e:
+                st.error(f"BigQuery load error: {e}")
+ 
+    # Credentials debug expander
+    with st.expander("🧪 Credentials (debug)"):
+        try:
+            import google.auth
+            creds, prj = google.auth.default()
+            st.write("ADC resolved project:", prj)
+            st.write("Creds class:", type(creds).__name__)
+            principal = getattr(creds, "service_account_email", None) \
+                        or getattr(creds, "_service_account_email", None) \
+                        or getattr(creds, "quota_project_id", None)
+            st.write("Principal:", principal or "(unknown)")
+        except Exception as e:
+            st.error(f"ADC not available: {e}")
+ 
+    st.divider()
+    # ========== Quick Explore (controls live in the sidebar) ==========
+    st.header("🧭 Quick Explore")
+ 
+    # This block can run even before df_ready; so read df from session_state.
+    df_in_sidebar = st.session_state.get("df")
+    if df_in_sidebar is None:
+        st.caption("Load a table to enable Quick Explore.")
+    else:
+        # Infer dimensions and measures (with the ID/digit rule)
+        dims, meas = infer_dims_meas(df_in_sidebar)
+ 
+        if not dims or not meas:
+            st.info("Could not infer both dimensions and measures from the loaded table.")
+        else:
+            st.selectbox("Dimension (X axis)", options=dims, key="qe_dim")
+            st.multiselect("Measures (Y)", options=meas, default=meas[:1], key="qe_measures")
+            st.selectbox("Chart type", options=["bar", "line", "area", "scatter"], index=0, key="qe_chart")
+            st.text_input("Freehand search (on selected Dimension)", placeholder="Type to filter…", key="qe_freetext")
+ 
+            with st.expander("Filters (optional)", expanded=False):
+                st.multiselect("Choose dimension columns", options=dims, key="qe_filter_cols")
+                # Dynamic values per selected column
+                if "qe_filter_values" not in st.session_state:
+                    st.session_state["qe_filter_values"] = {}
+                current_cols = st.session_state.get("qe_filter_cols") or []
+                for col in current_cols:
+                    vals = sorted(df_in_sidebar[col].dropna().astype(str).unique().tolist())
+                    st.session_state["qe_filter_values"][col] = st.multiselect(
+                        f"{col} values", options=vals, key=f"qe_filter_vals__{col}"
+                    )
+ 
+            col1, col2 = st.columns(2)
+            with col1:
+                apply_clicked = st.button("Apply filters", type="primary", key="qe_apply_btn_sidebar")
+            with col2:
+                reset_clicked = st.button("Reset filters", key="qe_reset_btn_sidebar")
+ 
+            # Store a rows-count message for UX (and preview visibility control)
+            if "qe_filters_applied_msg" not in st.session_state:
+                st.session_state["qe_filters_applied_msg"] = f"Rows after filters: {len(df_in_sidebar):,}"
+            if "qe_preview_visible" not in st.session_state:
+                st.session_state["qe_preview_visible"] = False  # default hidden
+ 
+            if reset_clicked:
+                # Clear freehand and filter selections
+                st.session_state["qe_freetext"] = ""
+                for col in (st.session_state.get("qe_filter_cols") or []):
+                    st.session_state[f"qe_filter_vals__{col}"] = []
+                st.session_state["qe_filter_cols"] = []
+                st.session_state["qe_filter_values"] = {}
+                st.session_state["qe_filters_applied_msg"] = f"Rows after filters: {len(df_in_sidebar):,}"
+                # Also hide preview on reset
+                st.session_state["qe_preview_visible"] = False
+ 
+            if apply_clicked:
+                # Compute the count after hypothetical filters to show in caption
+                fdf = df_in_sidebar.copy()
+                qe_dim = st.session_state.get("qe_dim")
+                qe_freetext = st.session_state.get("qe_freetext") or ""
+                if qe_freetext and qe_dim:
+                    fdf = fdf[fdf[qe_dim].astype(str).str.contains(qe_freetext, case=False, na=False)]
+                for col in (st.session_state.get("qe_filter_cols") or []):
+                    vals = st.session_state.get(f"qe_filter_vals__{col}") or []
+                    if vals:
+                        fdf = fdf[fdf[col].astype(str).isin([str(v) for v in vals])]
+                st.session_state["qe_filters_applied_msg"] = f"Rows after filters: {len(fdf):,}"
+                # Keep preview hidden until user explicitly clicks Show
+                st.session_state["qe_preview_visible"] = False
+ 
+            st.caption(st.session_state.get("qe_filters_applied_msg", ""))
+ 
+# ==============================
+# Guards and active DF (non-blocking)
+# ==============================
+df_ready = ("df" in st.session_state) and ("active_table_fqn" in st.session_state)
+model_ready = ("_gemini_model" in st.session_state)
+ 
+df = st.session_state.get("df")
+active_fqn = st.session_state.get("active_table_fqn")
+ 
+if not model_ready or not df_ready:
+    with st.container():
+        st.info(
+            "To start chatting:\n"
+            "1) In the sidebar, click **Connect to Vertex AI**\n"
+            "2) Pick **Dataset → Table** (or type the Manual FQN) and click **Load Data**"
+        )
+ 
+# ==============================
+# JSON Schemas (Chart + KPI + Controller)
+# ==============================
+CHARTSPEC_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "chart_type": {"enum": ["line", "bar", "area", "scatter"]},
+        "x": {"type": "string"},
+        "y": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]},
+        "color": {"type": ["string", "null"]},
+        "aggregate": {"enum": ["none", "sum", "mean", "median", "min", "max"], "default": "none"},
+        "filters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "column": {"type": "string"},
+                    "op": {"enum": ["==", "!=", ">", ">=", "<", "<=", "in", "between", "contains", "startswith", "endswith"]},
+                    "value": {}
+                },
+                "required": ["column", "op", "value"]
+            },
+            "default": []
+        },
+        "title": {"type": "string"},
+        "sort": {"enum": ["asc", "desc"]},
+        "stack": {"type": "boolean"},
+        "top_k": {"type": "integer", "minimum": 1}
+    },
+    "required": ["chart_type", "x", "y"]
+}
+ 
+KPI_SPEC_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "metric": {"type": "string"},
+        "date_col": {"type": "string"},
+        "aggregate": {"enum": ["sum", "mean", "median", "min", "max"], "default": "sum"},
+        "filters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "column": {"type": "string"},
+                    "op": {"enum": ["==", "!=", ">", ">=", "<", "<=", "in", "between", "contains", "startswith", "endswith"]},
+                    "value": {}
+                },
+                "required": ["column", "op", "value"]
+            },
+            "default": []
+        },
+        "title": {"type": "string"}
+    },
+    "required": ["metric", "date_col"]
+}
+ 
+AGENT_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"enum": ["ASK", "PLOT", "ANSWER", "SQL_PLOT", "SQL_ANSWER", "KPI", "SQL_KPI"]},
+        "question": {"type": ["string", "null"]},
+        "spec": CHARTSPEC_SCHEMA,
+        "kpi_spec": KPI_SPEC_SCHEMA,
+        "final_text": {"type": ["string", "null"]},
+        "sql": {"type": ["string", "null"]}
+    },
+    "required": ["action"]
+}
+ 
+def validate_spec(spec: dict):
+    validator = Draft7Validator(CHARTSPEC_SCHEMA)
+    errors = sorted(validator.iter_errors(spec), key=lambda e: e.path)
+    if errors:
+        raise ValueError("\n".join([f"{e.message} @ {list(e.path)}" for e in errors]))
+    return spec
+ 
+def validate_kpi_spec(spec: dict):
+    validator = Draft7Validator(KPI_SPEC_SCHEMA)
+    errors = sorted(validator.iter_errors(spec), key=lambda e: e.path)
+    if errors:
+        raise ValueError("\n".join([f"{e.message} @ {list(e.path)}" for e in errors]))
+    return spec
+ 
+def validate_agent_response(obj: dict):
+    validator = Draft7Validator(AGENT_RESPONSE_SCHEMA)
+    errors = sorted(validator.iter_errors(obj), key=lambda e: e.path)
+    if errors:
+        raise ValueError("\n".join([f"{e.message} @ {list(e.path)}" for e in errors]))
+    return obj
+ 
+# ==============================
+# DF summary for LLM
+# ==============================
+def df_summary_for_llm(_df: pd.DataFrame, table_fqn: str, max_distinct=10, head_rows=5) -> str:
+    summary = {
+        "table_fqn": table_fqn,
+        "columns": [
+            {
+                "name": c,
+                "dtype": str(_df[c].dtype),
+                "distinct_sample": _df[c].dropna().astype(str).unique().tolist()[:max_distinct]
+            } for c in _df.columns
+        ],
+        "rows_preview": _df.head(head_rows).to_dict(orient="records")
+    }
+    return json.dumps(summary, ensure_ascii=False, default=str)
+ 
+# ==============================
+# Controller prompt (Chart/KPI/Answer + SQL variants)
+# ==============================
+SYSTEM_INSTRUCTIONS = """
+You are a helpful data visualization and analysis assistant for BigQuery tables.
+ 
+Decide among actions:
+- ASK: request a short clarification.
+- PLOT / SQL_PLOT: user asked for a chart; return a ChartSpec (and SQL for SQL_PLOT).
+- KPI / SQL_KPI: user did NOT ask for a chart; return a KPI spec to show metric as Current Month (center), Previous Month (left), and MoM% (right).
+- ANSWER / SQL_ANSWER: direct textual answer.
+ 
+Always respond with JSON in this controller schema ONLY (no code fences, no prose):
+ 
+{
+  "action": "ASK" | "PLOT" | "ANSWER" | "SQL_PLOT" | "SQL_ANSWER" | "KPI" | "SQL_KPI",
+  "question": "<your follow-up question, if ASK>",
+  "spec": {
+    "chart_type": "line|bar|area|scatter",
+    "x": "<column name>",
+    "y": "<column name or list of column names>",
+    "color": "<column or null>",
+    "aggregate": "none|sum|mean|median|min|max",
+    "filters": [{"column": "<col>", "op": "==|!=|>|>=|<|<=|in|between|contains|startswith|endswith", "value": <value or [v1,v2]>}],
+    "title": "<title>",
+    "sort": "asc|desc",
+    "stack": true|false,
+    "top_k": <integer>
+  },
+  "kpi_spec": {
+    "metric": "<numeric column>",
+    "date_col": "<date/datetime column>",
+    "aggregate": "sum|mean|median|min|max",
+    "filters": [...],
+    "title": "<title>"
+  },
+  "final_text": "<your concise answer if ANSWER or SQL_ANSWER>",
+  "sql": "SELECT ...  -- SELECT-only, single statement, use ACTIVE_TABLE_FQN exactly"
+}
+ 
+Rules:
+- Use columns that exist in DATAFRAME_INFO.
+- If x is date/time, default to time-series (line/area).
+- Only add "aggregate" when requested or implied.
+- Prefer KPI / SQL_KPI when the user does not ask for a chart.
+- Prefer SQL_* variants for large tables; reference ACTIVE_TABLE_FQN exactly.
+- Use "top_k" in ChartSpec for "top 10 ..." requests.
+- When aggregating totals, keep "y" (in charts) or "metric" (in KPI) as existing numeric columns; do NOT invent aliases like "total_sales".
+- Omit keys you are not using; never output null values.
+"""
+ 
+def repair_json_blocks(text: str) -> str:
+    if not text:
+        return text
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE | re.MULTILINE).strip()
+    if text.startswith("{") and text.endswith("}"):
+        return text
+    s, e = text.find("{"), text.rfind("}")
+    if s != -1 and e != -1 and e > s:
+        return text[s:e+1]
+    return text
+ 
+def _strip_nulls(o):
+    if isinstance(o, dict):
+        return {k: _strip_nulls(v) for k, v in o.items() if v is not None}
+    if isinstance(o, list):
+        return [_strip_nulls(v) for v in o]
+    return o
+ 
+# ---------- Spec/KPI preflight helpers ----------
+def _choose_existing_column(name: str, columns: List[str]) -> Optional[str]:
+    if not name:
+        return None
+    if name in columns:
+        return name
+    name_l = str(name).lower()
+    for c in columns:
+        if c.lower() == name_l:
+            return c
+    base = re.sub(r"^(total_|sum_|avg_|mean_)", "", name_l)
+    for c in columns:
+        if c.lower() == base:
+            return c
+    for c in columns:
+        if base and base in c.lower():
+            return c
+    return None
+ 
+def preflight_spec_columns(spec: dict, df: pd.DataFrame) -> Tuple[Optional[dict], Optional[str]]:
+    cols = list(df.columns)
+    x_m = _choose_existing_column(spec.get("x"), cols)
+    if not x_m:
+        return None, f"I couldn't find column **{spec.get('x')}**. Choose x-axis from: {', '.join(cols[:15])}..."
+    spec["x"] = x_m
+ 
+    y = spec.get("y")
+    if isinstance(y, list):
+        mapped = []
+        for yi in y:
+            yi_m = _choose_existing_column(yi, cols)
+            if not yi_m:
+                return None, f"I couldn't find measure **{yi}**. Available columns: {', '.join(cols[:15])}..."
+            mapped.append(yi_m)
+        spec["y"] = mapped
+    else:
+        y_m = _choose_existing_column(y, cols)
+        if not y_m:
+            return None, f"I couldn't find measure **{y}**. Which column should I plot?"
+        spec["y"] = y_m
+ 
+    color = spec.get("color")
+    if color:
+        c_m = _choose_existing_column(color, cols)
+        spec["color"] = c_m if c_m else None
+ 
+    fixed_filters = []
+    for f in spec.get("filters", []) or []:
+        col_m = _choose_existing_column(f.get("column"), cols)
+        if not col_m:
+            continue
+        f = dict(f)
+        f["column"] = col_m
+        fixed_filters.append(f)
+    spec["filters"] = fixed_filters
+ 
+    return spec, None
+ 
+def preflight_kpi_spec(kpi_spec: dict, df: pd.DataFrame) -> Tuple[Optional[dict], Optional[str]]:
+    cols = list(df.columns)
+    metric = _choose_existing_column(kpi_spec.get("metric"), cols)
+    if not metric:
+        return None, f"I couldn't find metric **{kpi_spec.get('metric')}**. Pick from: {', '.join(cols[:15])}..."
+    date_col = _choose_existing_column(kpi_spec.get("date_col"), cols)
+    if not date_col:
+        return None, f"I couldn't find date column **{kpi_spec.get('date_col')}**. Pick from: {', '.join(cols[:15])}..."
+    kpi_spec["metric"] = metric
+    kpi_spec["date_col"] = date_col
+ 
+    fixed_filters = []
+    for f in kpi_spec.get("filters", []) or []:
+        col_m = _choose_existing_column(f.get("column"), cols)
+        if not col_m:
+            continue
+        f = dict(f)
+        f["column"] = col_m
+        fixed_filters.append(f)
+    kpi_spec["filters"] = fixed_filters
+    if "aggregate" not in kpi_spec or not kpi_spec["aggregate"]:
+        kpi_spec["aggregate"] = "sum"
+    return kpi_spec, None
+ 
+def call_agent(user_text: str, _df: pd.DataFrame, current_spec: Optional[dict], table_fqn: str) -> Tuple[Optional[dict], Optional[str]]:
+    if "_gemini_model" not in st.session_state:
+        return None, "Not connected to Vertex AI (use the sidebar)."
+    model = st.session_state["_gemini_model"]
+ 
+    df_hint = df_summary_for_llm(_df, table_fqn)
+ 
+    history: List[Dict[str, Any]] = st.session_state.get("chat_history", [])
+    last_turns = history[-6:]
+    hist_strs = []
+    for m in last_turns:
+        role = m["role"]
+        content = m.get("content") or m.get("text") or ""
+        hist_strs.append(f"{role.upper()}: {content}")
+    history_blob = "\n".join(hist_strs[-8:])
+ 
+    state = get_state()
+
+    last_action = state.get("last_action")
+    last_sql = state.get("last_sql")
+
+    extra_context = ""
+    if last_action:
+        extra_context += f"\nLAST_ACTION: {last_action}"
+    if last_sql:
+        extra_context += f"\nLAST_SQL:\n{last_sql}\n"
+
+    context_parts = [
+        SYSTEM_INSTRUCTIONS,
+        f"DATAFRAME_INFO:\n{df_hint}",
+        f"ACTIVE_TABLE_FQN:\n{table_fqn}",
+        f"CONVERSATION_CONTEXT (recent):\n{history_blob}",
+        extra_context,
+]
+
+    if current_spec:
+        context_parts.append("CURRENT_SPEC:\n" + json.dumps(current_spec, ensure_ascii=False))
+    context_parts.append("USER_MESSAGE:\n" + user_text)
+ 
+    try:
+        response = model.generate_content(
+            context_parts,
+            generation_config={"response_mime_type": "application/json", "temperature": 0.2}
+        )
+    except Exception as e:
+        return None, f"Model call failed: {e}"
+ 
+    text = repair_json_blocks(getattr(response, "text", "") or "")
+    if not text:
+        return None, "Empty response from model."
+ 
+    try:
+        obj = json.loads(text)
+        obj = _strip_nulls(obj)
+    except json.JSONDecodeError as e:
+        return None, f"JSON parse error: {e}\nRaw: {text[:1500]}"
+ 
+    try:
+        validate_agent_response(obj)
+    except Exception as e:
+        return obj, f"Agent response validation failed: {e}"
+ 
+    if obj.get("action") in ("PLOT", "SQL_PLOT"):
+        try:
+            validate_spec(obj["spec"])
+        except Exception as e:
+            return obj, f"Spec validation failed: {e}"
+    if obj.get("action") in ("KPI", "SQL_KPI"):
+        try:
+            validate_kpi_spec(obj["kpi_spec"])
+        except Exception as e:
+            return obj, f"KPI spec validation failed: {e}"
+ 
+    return obj, None
+ 
+# ==============================
+# Filtering + Rendering (charts)
+# ==============================
+def apply_filters(_df: pd.DataFrame, filters: list) -> pd.DataFrame:
+    out = _df.copy()
+    for f in filters or []:
+        col, op, val = f["column"], f["op"], f["value"]
+        if op == "==": out = out[out[col] == val]
+        elif op == "!=": out = out[out[col] != val]
+        elif op == ">": out = out[out[col] > val]
+        elif op == ">=": out = out[out[col] >= val]
+        elif op == "<": out = out[out[col] < val]
+        elif op == "<=": out = out[out[col] <= val]
+        elif op == "in": out = out[out[col].isin(val if isinstance(val, list) else [val])]
+        elif op == "between": out = out[out[col].between(val[0], val[1])]
+        elif op == "contains": out = out[out[col].astype(str).str.contains(str(val), na=False)]
+        elif op == "startswith": out = out[out[col].astype(str).str.startswith(str(val), na=False)]
+        elif op == "endswith": out = out[out[col].astype(str).str.endswith(str(val), na=False)]
+    return out
+ 
+def render_plotly(_df: pd.DataFrame, spec: dict) -> go.Figure:
+    # Using safe defaults (no sidebar chart tweaks).
+    default_bar_width = 0.9
+    default_bargap = 0.05
+    default_bargroupgap = 0.05
+    default_color_each_bar = True  # unique colors if no color series
+ 
+    df2 = apply_filters(_df, spec.get("filters", []))
+    x, y = spec["x"], spec["y"]
+    chart_type = spec["chart_type"]
+    color = spec.get("color")
+    agg = spec.get("aggregate", "none")
+    title = spec.get("title", "")
+    sort_opt = spec.get("sort")
+    stack = bool(spec.get("stack", False))
+ 
+    # Multi-series handling
+    if isinstance(y, list) and len(y) > 1:
+        melted = df2.melt(
+            id_vars=[x] + ([color] if color and color != x else []),
+            value_vars=y,
+            var_name="series",
+            value_name="value"
+        )
+        y_col = "value"
+        color_final = "series" if color is None else color
+        data = melted
+    else:
+        y_col = y if isinstance(y, str) else y[0]
+        color_final = color
+        data = df2
+ 
+    # Optional aggregation
+    if agg and agg != "none":
+        group_cols = [x] + ([color_final] if color_final else [])
+        data = data.groupby(group_cols, as_index=False).agg({y_col: agg})
+ 
+    # Top-K trimming
+    top_k = spec.get("top_k")
+    if isinstance(top_k, int) and top_k > 0:
+        rank_df = data.groupby(x, as_index=False)[y_col].sum().sort_values(y_col, ascending=False)
+        keep_x = set(rank_df[x].head(top_k))
+        data = data[data[x].isin(keep_x)]
+ 
+    # Sorting for bars
+    if chart_type == "bar":
+        if sort_opt not in ("asc", "desc"):
+            sort_opt = "desc"
+        ascending = (sort_opt == "asc")
+        order_df = data.groupby(x, as_index=False)[y_col].sum().sort_values(y_col, ascending=ascending)
+        ordered_x = order_df[x].tolist()
+        data[x] = pd.Categorical(data[x], categories=ordered_x, ordered=True)
+        data = data.sort_values([x] + ([color_final] if color_final else []))
+ 
+    # Per-bar colors if color is None
+    per_bar_color_used = False
+    if chart_type == "bar" and color_final is None and default_color_each_bar:
+        data["_bar_series_"] = data[x].astype(str)
+        color_final = "_bar_series_"
+        per_bar_color_used = True
+ 
+    # Build figure
+    if chart_type == "bar":
+        mode = "stack" if stack else "group"
+        fig = px.bar(data, x=x, y=y_col, color=color_final, title=title, barmode=mode)
+        fig.update_traces(width=default_bar_width, texttemplate="%{y:,.0f}", textposition="outside", cliponaxis=False)
+        fig.update_layout(bargap=default_bargap, bargroupgap=default_bargroupgap)
+        fig.update_xaxes(tickangle=-25)
+        if per_bar_color_used:
+            fig.update_layout(showlegend=False)
+    elif chart_type == "line":
+        fig = px.line(data, x=x, y=y_col, color=color_final, title=title, markers=True)
+    elif chart_type == "area":
+        fig = px.area(data, x=x, y=y_col, color=color_final, title=title)
+    elif chart_type == "scatter":
+        fig = px.scatter(data, x=x, y=y_col, color=color_final, title=title)
+    else:
+        raise ValueError("Unsupported chart_type")
+ 
+    fig.update_layout(
+        template="plotly_white",
+        hovermode="x unified",
+        xaxis_title=x,
+        yaxis_title=y_col,
+        margin=dict(l=60, r=20, t=70, b=80),
+        legend_title=None if per_bar_color_used else color_final
+    )
+    fig.update_yaxes(tickformat=",")
+    return fig
+ 
+# ==============================
+# KPI rendering & computation
+# ==============================
+def ensure_datetime(series: pd.Series) -> pd.Series:
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return series
+    try:
+        return pd.to_datetime(series, errors="coerce")
+    except Exception:
+        return series
+ 
+def compute_kpi_monthly(df_in: pd.DataFrame, kpi_spec: dict) -> Dict[str, Any]:
+    date_col = kpi_spec["date_col"]
+    metric = kpi_spec["metric"]
+    agg = kpi_spec.get("aggregate", "sum")
+    filters = kpi_spec.get("filters", []) or []
+ 
+    df = apply_filters(df_in, filters)
+    if date_col not in df.columns or metric not in df.columns:
+        return {"error": f"Columns not found after filters: {date_col} / {metric}"}
+ 
+    df = df.copy()
+    df[date_col] = ensure_datetime(df[date_col])
+    df = df.dropna(subset=[date_col])
+ 
+    df["_month"] = df[date_col].dt.to_period("M")
+    if agg == "sum":
+        gb = df.groupby("_month", as_index=False)[metric].sum()
+    else:
+        gb = df.groupby("_month", as_index=False)[metric].agg(agg)
+    if gb.empty:
+        return {"error": "No data after filtering."}
+ 
+    gb = gb.sort_values("_month")
+    unique_months = gb["_month"].unique()
+    curr_per = unique_months[-1]
+    prev_per = unique_months[-2] if len(unique_months) > 1 else None
+ 
+    curr_val = float(gb.loc[gb["_month"] == curr_per, metric].sum())
+    prev_val = float(gb.loc[gb["_month"] == prev_per, metric].sum()) if prev_per is not None else np.nan
+ 
+    mom_pct = np.nan
+    if prev_per is not None and prev_val != 0:
+        mom_pct = (curr_val - prev_val) / abs(prev_val) * 100.0
+ 
+    def fmt_month(p: pd.Period) -> str:
+        try:
+            return p.strftime("%b %Y")
+        except Exception:
+            return str(p)
+ 
+    return {
+        "prev_month_label": fmt_month(prev_per) if prev_per is not None else "—",
+        "prev_value": None if np.isnan(prev_val) else prev_val,
+        "curr_month_label": fmt_month(curr_per),
+        "curr_value": curr_val,
+        "mom_pct": None if np.isnan(mom_pct) else mom_pct
+    }
+ 
+def render_kpi(df: pd.DataFrame, kpi_spec: dict):
+    """Render 3-metric layout: Previous (left), Current (center), MoM% (right)."""
+    title = kpi_spec.get("title") or f"KPI: {kpi_spec.get('metric')} (MoM)"
+    st.markdown(f"### {title}")
+ 
+    k = compute_kpi_monthly(df, kpi_spec)
+    if "error" in k:
+        st.error(k["error"])
+        return
+ 
+    left, mid, right = st.columns([1, 1.2, 1])
+    with left:
+        st.metric(
+            label=f"Previous ({k['prev_month_label']})",
+            value=f"{k['prev_value']:,.0f}" if k["prev_value"] is not None else "—"
+        )
+    with mid:
+        st.metric(label=f"Current ({k['curr_month_label']})", value=f"{k['curr_value']:,.0f}")
+    with right:
+        st.metric(label="MoM %", value=f"{k['mom_pct']:.1f}%" if k["mom_pct"] is not None else "—")
+ 
+# ==============================
+# Chat state
+# ==============================
+if "chat_history" not in st.session_state:
+    st.session_state["chat_history"] = []
+if "current_spec" not in st.session_state:
+    st.session_state["current_spec"] = None
+if "qe_preview_visible" not in st.session_state:
+    st.session_state["qe_preview_visible"] = False  # ensure default hidden even on first load
+ 
+# Seed onboarding
+if not st.session_state["chat_history"]:
+    st.session_state["chat_history"].append({
+        "role": "assistant",
+        "content": (
+            "Hi! I can answer questions, create charts, or show KPIs from your BigQuery table.\n\n"
+            "Use the sidebar to **Connect to Vertex AI** and **Load Data**, then try:\n"
+            "- `Total SALES this month`\n"
+            "- `Top 10 cities by Sales in 2005`\n"
+            "- `Bar chart of Sales by City, sort descending`\n"
+            "- `Monthly trend of Sales in 2006; use SQL`\n"
+            "- `Make it stacked by Segment`"
+        )
+    })
+ 
+# ==============================
+# Chat UI: display history (fail-safe)
+# ==============================
+for m in st.session_state["chat_history"]:
+    with st.chat_message(m["role"]):
+        if m.get("type") == "chart" and "spec" in m and df_ready:
+            try:
+                if m.get("text"):
+                    st.markdown(m.get("text", ""))
+                fig = render_plotly(df, m["spec"])
+                st.plotly_chart(fig, use_container_width=True)
+                with st.expander("📄 ChartSpec (validated JSON)"):
+                    st.code(json.dumps(m["spec"], indent=2, ensure_ascii=False), language="json")
+                if m.get("sql"):
+                    with st.expander("🧠 SQL used"):
+                        st.code(m["sql"], language="sql")
+            except Exception as e:
+                st.error(f"Couldn't render this previous chart: {e}")
+        elif m.get("type") == "kpi" and "kpi_spec" in m and df_ready:
+            try:
+                render_kpi(df, m["kpi_spec"])
+                with st.expander("📄 KPISpec"):
+                    st.code(json.dumps(m["kpi_spec"], indent=2, ensure_ascii=False), language="json")
+                if m.get("sql"):
+                    with st.expander("🧠 SQL used"):
+                        st.code(m["sql"], language="sql")
+            except Exception as e:
+                st.error(f"Couldn't render this previous KPI: {e}")
+        elif m.get("type") == "answer":
+            st.markdown(m.get("text", ""))
+            if m.get("sql"):
+                with st.expander("🧠 SQL used"):
+                    st.code(m.get("sql"), language="sql")
+        else:
+            st.markdown(m.get("content", ""))
+ 
+# ==============================
+# Chat input (visible but disabled until ready)
+# ==============================
+prompt_placeholder = "Ask about the active table (e.g., 'total sales this month', 'top 10 cities in 2005')."
+disabled_reason = None
+if not model_ready and not df_ready:
+    disabled_reason = "Connect to Vertex AI and Load Data from the sidebar to start."
+elif not model_ready:
+    disabled_reason = "Connect to Vertex AI from the sidebar to start."
+elif not df_ready:
+    disabled_reason = "Load Data from the sidebar to start."
+ 
+user_msg = st.chat_input(
+    prompt_placeholder if not disabled_reason else f"{prompt_placeholder}  —  {disabled_reason}",
+    disabled=disabled_reason is not None
+)
+ 
+# ==============================
+# Message handling (helpers)
+# ==============================
+def handle_plot(spec: dict, data_df: pd.DataFrame, sql_text: Optional[str] = None):
+    spec_checked, ask_msg = preflight_spec_columns(spec, data_df)
+    if ask_msg:
+        with st.chat_message("assistant"):
+            st.markdown(ask_msg)
+        st.session_state["chat_history"].append({"role": "assistant", "content": ask_msg})
+        return
+    st.session_state["current_spec"] = spec_checked
+    with st.chat_message("assistant"):
+        try:
+            if spec_checked.get("title"):
+                st.markdown(spec_checked["title"])
+            fig = render_plotly(data_df, spec_checked)
+            st.plotly_chart(fig, use_container_width=True)
+            with st.expander("📄 ChartSpec (validated JSON)"):
+                st.code(json.dumps(spec_checked, indent=2, ensure_ascii=False), language="json")
+            if sql_text:
+                with st.expander("🧠 SQL used"):
+                    st.code(sql_text, language="sql")
+        except Exception as e:
+            st.error(f"Couldn't render chart: {e}")
+    st.session_state["chat_history"].append({
+        "role": "assistant",
+        "type": "chart",
+        "text": spec_checked.get("title", ""),
+        "spec": spec_checked,
+        **({"sql": sql_text} if sql_text else {})
+    })
+    update_chart_state(spec_checked, sql=sql_text)
+
+ 
+def handle_kpi(kpi_spec: dict, data_df: pd.DataFrame, sql_text: Optional[str] = None):
+    kpi_checked, ask_msg = preflight_kpi_spec(kpi_spec, data_df)
+    if ask_msg:
+        with st.chat_message("assistant"):
+            st.markdown(ask_msg)
+        st.session_state["chat_history"].append({"role": "assistant", "content": ask_msg})
+        return
+    with st.chat_message("assistant"):
+        try:
+            render_kpi(data_df, kpi_checked)
+            with st.expander("📄 KPISpec"):
+                st.code(json.dumps(kpi_checked, indent=2, ensure_ascii=False), language="json")
+            if sql_text:
+                with st.expander("🧠 SQL used"):
+                    st.code(sql_text, language="sql")
+        except Exception as e:
+            st.error(f"Couldn't render KPI: {e}")
+    st.session_state["chat_history"].append({
+        "role": "assistant",
+        "type": "kpi",
+        "kpi_spec": kpi_checked,
+        **({"sql": sql_text} if sql_text else {})
+    })
+    update_kpi_state(kpi_checked, sql=sql_text)
+
+
+ 
+# ==============================
+# Main pane: Quick Explore — Show/Hide Preview (hidden by default)
+# ==============================
+if df_ready:
+    st.markdown("## 🔎 Quick Explore — Preview")
+ 
+    dims, meas = infer_dims_meas(df)
+    if not dims or not meas:
+        st.info("I couldn't infer both dimensions and measures from the loaded table.")
+    else:
+        qe_dim = st.session_state.get("qe_dim") or dims[0]
+        qe_measures = st.session_state.get("qe_measures") or [meas[0]]
+        qe_chart = st.session_state.get("qe_chart") or "bar"
+        qe_freetext = st.session_state.get("qe_freetext") or ""
+        qe_filter_cols = st.session_state.get("qe_filter_cols") or []
+ 
+        # gather current filter values (from keys created in sidebar)
+        qe_filter_values: Dict[str, List[str]] = {}
+        for col in qe_filter_cols:
+            qe_filter_values[col] = st.session_state.get(f"qe_filter_vals__{col}") or []
+ 
+        # Build filters for ChartSpec
+        spec_filters = []
+        if qe_freetext and qe_dim:
+            spec_filters.append({"column": qe_dim, "op": "contains", "value": qe_freetext})
+        for col, vals in (qe_filter_values or {}).items():
+            if vals:
+                spec_filters.append({"column": col, "op": "in", "value": list(vals)})
+ 
+        chart_spec = {
+            "chart_type": qe_chart,
+            "x": qe_dim,
+            "y": qe_measures if len(qe_measures) > 1 else qe_measures[0],
+            "aggregate": "sum",
+            "filters": spec_filters,
+            "title": f"{qe_chart.title()} of {', '.join(qe_measures)} by {qe_dim}"
+        }
+ 
+        # Rows after filters caption (from sidebar)
+        st.caption(st.session_state.get("qe_filters_applied_msg", ""))
+ 
+        # Show/Hide Preview buttons
+        if not st.session_state["qe_preview_visible"]:
+            if st.button("Show preview", key="qe_show_preview_btn"):
+                st.session_state["qe_preview_visible"] = True
+        else:
+            if st.button("Hide preview", key="qe_hide_preview_btn"):
+                st.session_state["qe_preview_visible"] = False
+ 
+        # Render preview only when visible
+        if st.session_state["qe_preview_visible"]:
+            try:
+                fig = render_plotly(df, chart_spec)
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.error(f"Couldn't render preview: {e}")
+ 
+            # Push to chat
+            if st.button("Add chart to chat", key="qe_add_to_chat_main"):
+                handle_plot(chart_spec, df)
+ 
+# ==============================
+# Handle user message (agent)
+# ==============================
+if user_msg:
+    st.session_state["chat_history"].append({"role": "user", "content": user_msg})
+    with st.chat_message("user"):
+        st.markdown(user_msg)
+ 
+    if not model_ready or not df_ready:
+        with st.chat_message("assistant"):
+            st.info("Please complete the sidebar setup first (Connect to Vertex AI + Load Data).")
+    else:
+        state = get_state()
+        active_df_for_agent = state.get("last_dataframe") or df
+
+        agent_obj, err = call_agent(
+            user_msg,
+            active_df_for_agent,
+            st.session_state["current_spec"],
+            active_fqn
+)
+
+        if err:
+            with st.chat_message("assistant"):
+                st.error(err)
+            st.session_state["chat_history"].append({"role": "assistant", "content": f"⚠️ {err}"})
+        else:
+            action = agent_obj.get("action")
+ 
+            if action == "ASK":
+                q = (agent_obj.get("question") or "").strip() or "Could you clarify your intended x/y/filters?"
+                with st.chat_message("assistant"):
+                    st.markdown(q)
+                st.session_state["chat_history"].append({"role": "assistant", "content": q})
+ 
+            elif action == "PLOT":
+                handle_plot(agent_obj.get("spec", {}) or {}, df)
+ 
+            elif action == "ANSWER":
+                final_text = (agent_obj.get("final_text") or "").strip() or "Here is the answer based on the active dataset."
+                with st.chat_message("assistant"):
+                    st.markdown(final_text)
+                st.session_state["chat_history"].append({
+                    "role": "assistant",
+                    "type": "answer",
+                    "text": final_text
+                })
+ 
+            elif action == "SQL_PLOT":
+                spec = agent_obj.get("spec", {}) or {}
+                sql = (agent_obj.get("sql") or "").strip()
+                if not is_safe_select_sql(sql):
+                    with st.chat_message("assistant"):
+                        st.error("Rejected SQL (must be a single SELECT).")
+                    st.session_state["chat_history"].append({"role": "assistant", "content": "Rejected SQL."})
+                else:
+                    df_sql, err_sql = run_sql(sql, PROJECT_ID)
+                    if err_sql:
+                        with st.chat_message("assistant"):
+                            st.error(err_sql)
+                        st.session_state["chat_history"].append({"role": "assistant", "content": f"⚠️ {err_sql}"})
+                    else:
+                        handle_plot(spec, df_sql, sql_text=sql)
+ 
+            elif action == "SQL_ANSWER":
+                sql = (agent_obj.get("sql") or "").strip()
+                final_text = (agent_obj.get("final_text") or "").strip()
+                if not is_safe_select_sql(sql):
+                    with st.chat_message("assistant"):
+                        st.error("Rejected SQL (must be a single SELECT).")
+                    st.session_state["chat_history"].append({"role": "assistant", "content": "Rejected SQL."})
+                else:
+                    df_sql, err_sql = run_sql(sql, PROJECT_ID)
+                    with st.chat_message("assistant"):
+                        if err_sql:
+                            st.error(err_sql)
+                            st.session_state["chat_history"].append({"role": "assistant", "content": f"⚠️ {err_sql}"})
+                        else:
+                            if not final_text:
+                                final_text = f"Ran SQL and found {len(df_sql):,} rows. Showing a preview."
+                            st.markdown(final_text)
+                            with st.expander(f"🔍 Preview ({len(df_sql):,} rows)"):
+                                st.dataframe(df_sql.head(50))
+                            with st.expander("🧠 SQL used"):
+                                st.code(sql, language="sql")
+                            st.session_state["chat_history"].append({
+                                "role": "assistant",
+                                "type": "answer",
+                                "text": final_text,
+                                "sql": sql
+                            })
+ 
+            elif action == "KPI":
+                handle_kpi(agent_obj.get("kpi_spec", {}) or {}, df)
+ 
+            elif action == "SQL_KPI":
+                kpi_spec = agent_obj.get("kpi_spec", {}) or {}
+                sql = (agent_obj.get("sql") or "").strip()
+                if not is_safe_select_sql(sql):
+                    with st.chat_message("assistant"):
+                        st.error("Rejected SQL (must be a single SELECT).")
+                    st.session_state["chat_history"].append({"role": "assistant", "content": "Rejected SQL."})
+                else:
+                    df_sql, err_sql = run_sql(sql, PROJECT_ID)
+                    if err_sql:
+                        with st.chat_message("assistant"):
+                            st.error(err_sql)
+                        st.session_state["chat_history"].append
