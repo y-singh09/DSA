@@ -1,25 +1,38 @@
 import streamlit as st
 
+
 def init_state():
     if "conversation_state" not in st.session_state:
         st.session_state["conversation_state"] = {
             "last_chart_spec": None,
             "last_kpi_spec": None,
             "last_sql": None,
-            "last_action": None
+            "last_action": None,
+            "last_dataframe": None,   # 🔥 Important
         }
 
-def update_chart_state(spec, sql=None):
-    st.session_state["conversation_state"]["last_chart_spec"] = spec
-    st.session_state["conversation_state"]["last_action"] = "PLOT"
-    if sql:
-        st.session_state["conversation_state"]["last_sql"] = sql
 
-def update_kpi_state(spec, sql=None):
-    st.session_state["conversation_state"]["last_kpi_spec"] = spec
-    st.session_state["conversation_state"]["last_action"] = "KPI"
+def update_chart_state(spec, sql=None, df=None):
+    state = st.session_state["conversation_state"]
+    state["last_chart_spec"] = spec
+    state["last_action"] = "PLOT"
+
     if sql:
-        st.session_state["conversation_state"]["last_sql"] = sql
+        state["last_sql"] = sql
+    if df is not None:
+        state["last_dataframe"] = df
+
+
+def update_kpi_state(spec, sql=None, df=None):
+    state = st.session_state["conversation_state"]
+    state["last_kpi_spec"] = spec
+    state["last_action"] = "KPI"
+
+    if sql:
+        state["last_sql"] = sql
+    if df is not None:
+        state["last_dataframe"] = df
+
 
 def get_state():
     return st.session_state.get("conversation_state", {})
