@@ -1,0 +1,64 @@
+import streamlit as st
+
+
+def init_state():
+    """
+    Initialize conversation memory.
+    This runs once per session.
+    """
+    if "conversation_state" not in st.session_state:
+        st.session_state["conversation_state"] = {
+            "last_chart_spec": None,
+            "last_kpi_spec": None,
+            "last_sql": None,
+            "last_action": None,
+            "last_dataframe": None,   # 🔥 stores last SQL result df
+        }
+
+
+def update_chart_state(spec, sql=None, df=None):
+    """
+    Store latest chart-related memory.
+    """
+    st.session_state["conversation_state"]["last_chart_spec"] = spec
+    st.session_state["conversation_state"]["last_action"] = "PLOT"
+
+    if sql:
+        st.session_state["conversation_state"]["last_sql"] = sql
+
+    if df is not None:
+        st.session_state["conversation_state"]["last_dataframe"] = df
+
+
+def update_kpi_state(spec, sql=None, df=None):
+    """
+    Store latest KPI-related memory.
+    """
+    st.session_state["conversation_state"]["last_kpi_spec"] = spec
+    st.session_state["conversation_state"]["last_action"] = "KPI"
+
+    if sql:
+        st.session_state["conversation_state"]["last_sql"] = sql
+
+    if df is not None:
+        st.session_state["conversation_state"]["last_dataframe"] = df
+
+
+def update_sql_state(sql, df=None):
+    """
+    Store SQL memory even if no chart/KPI was generated.
+    """
+    st.session_state["conversation_state"]["last_action"] = "SQL"
+
+    if sql:
+        st.session_state["conversation_state"]["last_sql"] = sql
+
+    if df is not None:
+        st.session_state["conversation_state"]["last_dataframe"] = df
+
+
+def get_state():
+    """
+    Retrieve conversation memory safely.
+    """
+    return st.session_state.get("conversation_state", {})
