@@ -1,379 +1,196 @@
-//	var QtrSelected = InputControl_qtr.getInputControlDataSource().getActiveSelectedMembers();
-//	console.log(QtrSelected);
-//	// Rolling Script
-//	if (QtrSelected.length > 0) {
-//	    var qtrSel = QtrSelected[0].id; 
-//		console.log(qtrSel);
+var QtrSelected = InputControl_qtr.getInputControlDataSource().getActiveSelectedMembers();
+console.log(QtrSelected);
+// Rolling Script
+if (QtrSelected.length > 0) {
+    var qtrSel = QtrSelected[0].id; 
+	console.log(qtrSel);
 	
-//	    var currentQ = ConvertUtils.stringToInteger(qtrSel.slice(1, 2));
-//	    var currentY = ConvertUtils.stringToInteger(qtrSel.slice(3, 5));
-//	    var tempQ = currentQ;
-//	    var tempY = currentY;
-//		var rollingQuarters = ArrayUtils.create(Type.string);
-//	    for (var i = 0; i < 5; i++) {
-//	        var formatted = "Q" + tempQ.toString() + "-" + tempY.toString();
-//			console.log("formatted");
-//	        rollingQuarters.push(formatted);
-//	        tempQ--;
-//	        if (tempQ === 0) {
-//	            tempQ = 4;
-//	            tempY--;
-//	        }
-//	    }
-//		console.log("rollingQuarters");
-//	    Table_FTE.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
-//		Table_Spend.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
-//		Table_FTE_per.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
-//		Table_Annualized_Cost.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
-//		console.log("table Trend");
-//		Chart_FTE.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
-//		Chart_FTE_per.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
-//		Chart_Spend.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
-//		Chart_Cost.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
-//		console.log("Chart Trend");
-//	    console.log(rollingQuarters);
+    var currentQ = ConvertUtils.stringToInteger(qtrSel.slice(1, 2));
+    var currentY = ConvertUtils.stringToInteger(qtrSel.slice(3, 5));
+    var tempQ = currentQ;
+    var tempY = currentY;
+	var rollingQuarters = ArrayUtils.create(Type.string);
+    for (var i = 0; i < 5; i++) {
+        var formatted = "Q" + tempQ.toString() + "-" + tempY.toString();
+		console.log("formatted");
+        rollingQuarters.push(formatted);
+        tempQ--;
+        if (tempQ === 0) {
+            tempQ = 4;
+            tempY--;
+        }
+    }
+	console.log("rollingQuarters");
+    Table_FTE.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
+	Table_Spend.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
+	Table_FTE_per.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
+	Table_Annualized_Cost.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
+	console.log("table Trend");
+	Chart_FTE.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
+	Chart_FTE_per.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
+	Chart_Spend.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
+	Chart_Cost.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
+	console.log("Chart Trend");
+    console.log(rollingQuarters);
 	
-//		//Total
-//		vCurr_qtr_Total_FTE = 0; vPrev_qtr_Total_FTE = 0;
-//		vCurr_qtr_Total_Spend = 0; vPrev_qtr_Total_Spend = 0;
-//		vCurr_qtr_Total_FTE_per = 0; vPrev_qtr_Total_FTE_per = 0;
-//		vCurr_qtr_Total_Cost = 0; vPrev_qtr_Total_Cost = 0;
+	//Total
+	vCurr_qtr_Total_FTE = 0; vPrev_qtr_Total_FTE = 0;
+	vCurr_qtr_Total_Spend = 0; vPrev_qtr_Total_Spend = 0;
+	vCurr_qtr_Total_FTE_per = 0; vPrev_qtr_Total_FTE_per = 0;
+	vCurr_qtr_Total_Cost = 0; vPrev_qtr_Total_Cost = 0;
 	
-//		//Onshore_Internal
-//		vCurr_qtr_Onshore_FTE = 0; vPrev_qtr_Onshore_FTE = 0;
-//		vCurr_qtr_Onshore_Spend = 0; vPrev_qtr_Onshore_Spend = 0;
-//		vCurr_qtr_Onshore_FTE_per = 0; vPrev_qtr_Onshore_FTE_per = 0;
-//		vCurr_qtr_Onshore_Cost = 0; vPrev_qtr_Onshore_Cost = 0;
+	//Onshore_Internal
+	vCurr_qtr_Onshore_FTE = 0; vPrev_qtr_Onshore_FTE = 0;
+	vCurr_qtr_Onshore_Spend = 0; vPrev_qtr_Onshore_Spend = 0;
+	vCurr_qtr_Onshore_FTE_per = 0; vPrev_qtr_Onshore_FTE_per = 0;
+	vCurr_qtr_Onshore_Cost = 0; vPrev_qtr_Onshore_Cost = 0;
 	
-//		//External
-//		vCurr_qtr_External_FTE = 0; vPrev_qtr_External_FTE = 0;
-//		vCurr_qtr_External_Spend = 0; vPrev_qtr_External_Spend = 0;
-//		vCurr_qtr_External_FTE_per = 0; vPrev_qtr_External_FTE_per = 0;
-//		vCurr_qtr_External_Cost = 0; vPrev_qtr_External_Cost = 0;
+	//External
+	vCurr_qtr_External_FTE = 0; vPrev_qtr_External_FTE = 0;
+	vCurr_qtr_External_Spend = 0; vPrev_qtr_External_Spend = 0;
+	vCurr_qtr_External_FTE_per = 0; vPrev_qtr_External_FTE_per = 0;
+	vCurr_qtr_External_Cost = 0; vPrev_qtr_External_Cost = 0;
 	
-//		//Vois
-//		vCurr_qtr_Vois_FTE = 0; vPrev_qtr_Vois_FTE = 0;
-//		vCurr_qtr_Vois_Spend = 0; vPrev_qtr_Vois_Spend = 0;
-//		vCurr_qtr_Vois_FTE_per = 0; vPrev_qtr_Vois_FTE_per = 0;
-//		vCurr_qtr_Vois_Cost = 0; vPrev_qtr_Vois_Cost = 0;
+	//Vois
+	vCurr_qtr_Vois_FTE = 0; vPrev_qtr_Vois_FTE = 0;
+	vCurr_qtr_Vois_Spend = 0; vPrev_qtr_Vois_Spend = 0;
+	vCurr_qtr_Vois_FTE_per = 0; vPrev_qtr_Vois_FTE_per = 0;
+	vCurr_qtr_Vois_Cost = 0; vPrev_qtr_Vois_Cost = 0;
 	
-//		//Contractor
-//		vCurr_qtr_Contractor_FTE = 0; vPrev_qtr_Contractor_FTE = 0;
-//		vCurr_qtr_Contractor_Spend = 0; vPrev_qtr_Contractor_Spend = 0;
-//		vCurr_qtr_Contractor_FTE_per = 0; vPrev_qtr_Contractor_FTE_per = 0;
-//		vCurr_qtr_Contractor_Cost = 0; vPrev_qtr_Contractor_Cost = 0;
+	//Contractor
+	vCurr_qtr_Contractor_FTE = 0; vPrev_qtr_Contractor_FTE = 0;
+	vCurr_qtr_Contractor_Spend = 0; vPrev_qtr_Contractor_Spend = 0;
+	vCurr_qtr_Contractor_FTE_per = 0; vPrev_qtr_Contractor_FTE_per = 0;
+	vCurr_qtr_Contractor_Cost = 0; vPrev_qtr_Contractor_Cost = 0;
 	
-//		var selQtr = rollingQuarters[0]; 
-//		var prevYearQtr = rollingQuarters[4];
-//	 Table_qtr_3.getDataSource().refreshData();
-//		var data = Table_qtr_3.getDataSource().getResultSet();
-//	// 3. Loop through data to find matches for specifically [0] and [4]
-//		for (var j = 0; j < data.length; j++) {
-//	    	var row = data[j];
-//	    	var qtrID = row["Quarter"].id;
-//	    	var kpiID = row["SourceType"].id;
+	var selQtr = rollingQuarters[0]; 
+	var prevYearQtr = rollingQuarters[4];
+ Table_qtr_3.getDataSource().refreshData();
+	var data = Table_qtr_3.getDataSource().getResultSet();
+// 3. Loop through data to find matches for specifically [0] and [4]
+	for (var j = 0; j < data.length; j++) {
+    	var row = data[j];
+    	var qtrID = row["Quarter"].id;
+    	var kpiID = row["SourceType"].id;
     
-//	    // Use the actual dimension ID for measures
-//	    	var measureID = row[Alias.MeasureDimension].id; 
-//	    	var val = ConvertUtils.stringToNumber(row[Alias.MeasureDimension].rawValue);
+    // Use the actual dimension ID for measures
+    	var measureID = row[Alias.MeasureDimension].id; 
+    	var val = ConvertUtils.stringToNumber(row[Alias.MeasureDimension].rawValue);
 
-//	    // Filter for 'FTE' Measures
-//	    	if (measureID === "FTE") {
-//	        // MATCH CURRENT QUARTER (rollingQuarters[0])
-//	        	if (qtrID === selQtr) {
-//	            	if (kpiID === "Total") { vCurr_qtr_Total_FTE = val;  }
-//	           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_FTE = val; }
-//	           	 if (kpiID === "External") { vCurr_qtr_External_FTE = val; }
-//	           	 if (kpiID === "Contractors") { vCurr_qtr_Contractor_FTE = val; }
-//					if (kpiID === "Vodafone Subtotal") { vCurr_qtr_Vois_FTE = val; }
+    // Filter for 'FTE' Measures
+    	if (measureID === "FTE") {
+        // MATCH CURRENT QUARTER (rollingQuarters[0])
+        	if (qtrID === selQtr) {
+            	if (kpiID === "Total") { vCurr_qtr_Total_FTE = val;  }
+           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_FTE = val; }
+           	 if (kpiID === "External") { vCurr_qtr_External_FTE = val; }
+           	 if (kpiID === "Contractors") { vCurr_qtr_Contractor_FTE = val; }
+				if (kpiID === "Vodafone Subtotal") { vCurr_qtr_Vois_FTE = val; }
 				
-//	        	}
-//	        // MATCH PREVIOUS YEAR QUARTER (rollingQuarters[4])
-//	        	if (qtrID === prevYearQtr) {
-//	           	 if (kpiID === "Total") { vPrev_FTE = val;  }
-//	           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_FTE = val; }
-//	           	 if (kpiID === "External") { vPrev_qtr_External_FTE = val; }
-//	           	 if (kpiID === "Contractors") { vPrev_qtr_Contractor_FTE = val; }
-//					if (kpiID === "Vodafone Subtotal") { vPrev_qtr_Vois_FTE = val; }
-//	        	}
-//	   	 }
-//			// Filter for 'Annualised_Cost_per_FTE_Euro' Measures
-//	    	if (measureID === "Annualised_Cost_per_FTE_Eurok") {
-//	        // MATCH CURRENT QUARTER (rollingQuarters[0])
-//	        	if (qtrID === selQtr) {
-//	            	if (kpiID === "Total") { vCurr_qtr_Total_Cost = val;  }
-//	           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_Cost = val; }
-//	           	 if (kpiID === "External") { vCurr_qtr_External_Cost = val; }
-//	           	 if (kpiID === "Contractors") { vCurr_qtr_Contractor_Cost = val; }
-//					if (kpiID === "Vodafone Subtotal") { vCurr_qtr_Vois_Cost = val; }
-//	        	}
-//	        // MATCH PREVIOUS YEAR QUARTER (rollingQuarters[4])
-//	        	if (qtrID === prevYearQtr) {
-//	           	 if (kpiID === "Total") { vPrev_qtr_Total_Cost = val;  }
-//	           	 if (kpiID === "Onshore internal") { vPrev_qtr_Onshore_Cost= val; }
-//	           	 if (kpiID === "External") { vPrev_qtr_External_Cost = val; }
-//	           	 if (kpiID === "Contractors") { vPrev_qtr_Contractor_Cost = val; }
-//					if (kpiID === "Vodafone Subtotal") { vPrev_qtr_Vois_Cost = val; }
-//	        	}
-//	   	 }
-//			// Filter for 'FTE_Percentage' Measures
-//	    	if (measureID === "FTE_Percentage") {
-//	        // MATCH CURRENT QUARTER (rollingQuarters[0])
-//	        	if (qtrID === selQtr) {
-//	            	if (kpiID === "Total") { vCurr_qtr_Total_FTE_per = val;  }
-//	           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_FTE_per = val; }
-//	           	 if (kpiID === "External") { vCurr_qtr_External_FTE_per = val; }
-//	           	 if (kpiID === "Contractors") { vCurr_qtr_Contractor_FTE_per = val; }
-//					if (kpiID === "Vodafone Subtotal") { vCurr_qtr_Vois_FTE_per = val; }
-//	        	}
-//	        // MATCH PREVIOUS YEAR QUARTER (rollingQuarters[4])
-//	        	if (qtrID === prevYearQtr) {
-//	           	 if (kpiID === "Total") { vPrev_qtr_Total_FTE_per = val;  }
-//	           	 if (kpiID === "Onshore internal") { vPrev_qtr_Onshore_FTE_per = val; }
-//	           	 if (kpiID === "External") { vPrev_qtr_External_FTE_per = val; }
-//	           	 if (kpiID === "Contractors") { vPrev_qtr_Contractor_FTE_per = val; }
-//					if (kpiID === "Vodafone Subtotal") { vPrev_qtr_Vois_FTE_per = val; }
-//	        	}
-//	   	 }
-//			// Filter for 'Spend_gross_payroll_Eurom' Measures
-//	    	if (measureID === "Spend_gross_payroll_Eurom") {
-//	        // MATCH CURRENT QUARTER (rollingQuarters[0])
-//	        	if (qtrID === selQtr) {
-//	            	if (kpiID === "Total") { vCurr_qtr_Total_Spend = val;  }
-//	           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_Spend = val; }
-//	           	 if (kpiID === "External") { vCurr_qtr_External_Spend = val; }
-//	           	 if (kpiID === "Contractors") { vCurr_qtr_Contractor_Spend = val; }
-//					if (kpiID === "Vodafone Subtotal") { vCurr_qtr_Vois_Spend = val; }
-//	        	}
-//	        // MATCH PREVIOUS YEAR QUARTER (rollingQuarters[4])
-//	        	if (qtrID === prevYearQtr) {
-//	           	 if (kpiID === "Total") { vPrev_qtr_Total_Spend = val;  }
-//	           	 if (kpiID === "Onshore internal") { vPrev_qtr_Onshore_Spend = val; }
-//	           	 if (kpiID === "External") { vPrev_qtr_External_Spend = val; }
-//	           	 if (kpiID === "Contractors") { vPrev_qtr_Contractor_Spend = val; }
-//					if (kpiID === "Vodafone Subtotal") { vPrev_qtr_Vois_Spend = val; }
-//	        	}
-//	   	 }
+        	}
+        // MATCH PREVIOUS YEAR QUARTER (rollingQuarters[4])
+        	if (qtrID === prevYearQtr) {
+           	 if (kpiID === "Total") { vPrev_FTE = val;  }
+           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_FTE = val; }
+           	 if (kpiID === "External") { vPrev_qtr_External_FTE = val; }
+           	 if (kpiID === "Contractors") { vPrev_qtr_Contractor_FTE = val; }
+				if (kpiID === "Vodafone Subtotal") { vPrev_qtr_Vois_FTE = val; }
+        	}
+   	 }
+		// Filter for 'Annualised_Cost_per_FTE_Euro' Measures
+    	if (measureID === "Annualised_Cost_per_FTE_Eurok") {
+        // MATCH CURRENT QUARTER (rollingQuarters[0])
+        	if (qtrID === selQtr) {
+            	if (kpiID === "Total") { vCurr_qtr_Total_Cost = val;  }
+           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_Cost = val; }
+           	 if (kpiID === "External") { vCurr_qtr_External_Cost = val; }
+           	 if (kpiID === "Contractors") { vCurr_qtr_Contractor_Cost = val; }
+				if (kpiID === "Vodafone Subtotal") { vCurr_qtr_Vois_Cost = val; }
+        	}
+        // MATCH PREVIOUS YEAR QUARTER (rollingQuarters[4])
+        	if (qtrID === prevYearQtr) {
+           	 if (kpiID === "Total") { vPrev_qtr_Total_Cost = val;  }
+           	 if (kpiID === "Onshore internal") { vPrev_qtr_Onshore_Cost= val; }
+           	 if (kpiID === "External") { vPrev_qtr_External_Cost = val; }
+           	 if (kpiID === "Contractors") { vPrev_qtr_Contractor_Cost = val; }
+				if (kpiID === "Vodafone Subtotal") { vPrev_qtr_Vois_Cost = val; }
+        	}
+   	 }
+		// Filter for 'FTE_Percentage' Measures
+    	if (measureID === "FTE_Percentage") {
+        // MATCH CURRENT QUARTER (rollingQuarters[0])
+        	if (qtrID === selQtr) {
+            	if (kpiID === "Total") { vCurr_qtr_Total_FTE_per = val;  }
+           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_FTE_per = val; }
+           	 if (kpiID === "External") { vCurr_qtr_External_FTE_per = val; }
+           	 if (kpiID === "Contractors") { vCurr_qtr_Contractor_FTE_per = val; }
+				if (kpiID === "Vodafone Subtotal") { vCurr_qtr_Vois_FTE_per = val; }
+        	}
+        // MATCH PREVIOUS YEAR QUARTER (rollingQuarters[4])
+        	if (qtrID === prevYearQtr) {
+           	 if (kpiID === "Total") { vPrev_qtr_Total_FTE_per = val;  }
+           	 if (kpiID === "Onshore internal") { vPrev_qtr_Onshore_FTE_per = val; }
+           	 if (kpiID === "External") { vPrev_qtr_External_FTE_per = val; }
+           	 if (kpiID === "Contractors") { vPrev_qtr_Contractor_FTE_per = val; }
+				if (kpiID === "Vodafone Subtotal") { vPrev_qtr_Vois_FTE_per = val; }
+        	}
+   	 }
+		// Filter for 'Spend_gross_payroll_Eurom' Measures
+    	if (measureID === "Spend_gross_payroll_Eurom") {
+        // MATCH CURRENT QUARTER (rollingQuarters[0])
+        	if (qtrID === selQtr) {
+            	if (kpiID === "Total") { vCurr_qtr_Total_Spend = val;  }
+           	 if (kpiID === "Onshore internal") { vCurr_qtr_Onshore_Spend = val; }
+           	 if (kpiID === "External") { vCurr_qtr_External_Spend = val; }
+           	 if (kpiID === "Contractors") { vCurr_qtr_Contractor_Spend = val; }
+				if (kpiID === "Vodafone Subtotal") { vCurr_qtr_Vois_Spend = val; }
+        	}
+        // MATCH PREVIOUS YEAR QUARTER (rollingQuarters[4])
+        	if (qtrID === prevYearQtr) {
+           	 if (kpiID === "Total") { vPrev_qtr_Total_Spend = val;  }
+           	 if (kpiID === "Onshore internal") { vPrev_qtr_Onshore_Spend = val; }
+           	 if (kpiID === "External") { vPrev_qtr_External_Spend = val; }
+           	 if (kpiID === "Contractors") { vPrev_qtr_Contractor_Spend = val; }
+				if (kpiID === "Vodafone Subtotal") { vPrev_qtr_Vois_Spend = val; }
+        	}
+   	 }
 
-//	}
-//		// Total
-//		vTotal_FTE = Math.round(vCurr_qtr_Total_FTE - vPrev_qtr_Total_FTE);
-//		vTotal_Spend = Math.round(vCurr_qtr_Total_Spend - vPrev_qtr_Total_Spend);
-//		vTotal_FTE_Per = Math.round(vCurr_qtr_Total_FTE_per - vPrev_qtr_Total_FTE_per);
-//		vTotal_Cost = Math.round(vCurr_qtr_Total_Cost - vPrev_qtr_Total_Cost);
-//		console.log(vCurr_qtr_Total_FTE);
-//		console.log(vCurr_qtr_Total_FTE_per);
-//		console.log(vPrev_qtr_Total_FTE);
-//		console.log(vPrev_qtr_Total_FTE_per);
-//		console.log(vTotal_FTE);
-//		console.log(vTotal_FTE_Per);
+}
+	// Total
+	vTotal_FTE = Math.round(vCurr_qtr_Total_FTE - vPrev_qtr_Total_FTE);
+	vTotal_Spend = Math.round(vCurr_qtr_Total_Spend - vPrev_qtr_Total_Spend);
+	vTotal_FTE_Per = Math.round(vCurr_qtr_Total_FTE_per - vPrev_qtr_Total_FTE_per);
+	vTotal_Cost = Math.round(vCurr_qtr_Total_Cost - vPrev_qtr_Total_Cost);
+	console.log(vCurr_qtr_Total_FTE);
+	console.log(vCurr_qtr_Total_FTE_per);
+	console.log(vPrev_qtr_Total_FTE);
+	console.log(vPrev_qtr_Total_FTE_per);
+	console.log(vTotal_FTE);
+	console.log(vTotal_FTE_Per);
 	
-//		// Onshore_Internal
-//		vOnshore_FTE = Math.round(vCurr_qtr_Onshore_FTE - vPrev_qtr_Onshore_FTE);
-//		vOnshore_FTE_per = Math.round(vCurr_qtr_Onshore_FTE_per - vPrev_qtr_Onshore_FTE_per);
-//		vOnshore_Cost = Math.round(vCurr_qtr_Onshore_Cost - vPrev_qtr_Onshore_Cost);
-//		vOnshore_Spend = Math.round(vCurr_qtr_Onshore_Spend - vPrev_qtr_Onshore_Spend);
+	// Onshore_Internal
+	vOnshore_FTE = Math.round(vCurr_qtr_Onshore_FTE - vPrev_qtr_Onshore_FTE);
+	vOnshore_FTE_per = Math.round(vCurr_qtr_Onshore_FTE_per - vPrev_qtr_Onshore_FTE_per);
+	vOnshore_Cost = Math.round(vCurr_qtr_Onshore_Cost - vPrev_qtr_Onshore_Cost);
+	vOnshore_Spend = Math.round(vCurr_qtr_Onshore_Spend - vPrev_qtr_Onshore_Spend);
 	
-//		//External
-//		vExternal_FTE = Math.round(vCurr_qtr_External_FTE - vPrev_qtr_External_FTE);
-//		vExternal_Spend = Math.round(vCurr_qtr_External_Spend - vPrev_qtr_External_Spend);
-//		vExternal_FTE_Per = Math.round(vCurr_qtr_External_FTE_per - vPrev_qtr_External_FTE_per);
-//		vExternal_Cost = Math.round(vCurr_qtr_External_Cost - vPrev_qtr_External_Cost);
+	//External
+	vExternal_FTE = Math.round(vCurr_qtr_External_FTE - vPrev_qtr_External_FTE);
+	vExternal_Spend = Math.round(vCurr_qtr_External_Spend - vPrev_qtr_External_Spend);
+	vExternal_FTE_Per = Math.round(vCurr_qtr_External_FTE_per - vPrev_qtr_External_FTE_per);
+	vExternal_Cost = Math.round(vCurr_qtr_External_Cost - vPrev_qtr_External_Cost);
 	
-//		// Vois
-//		vVois_FTE = Math.round(vCurr_qtr_Vois_FTE - vPrev_qtr_Vois_FTE);
-//		vVois_FTE_per = Math.round(vCurr_qtr_Vois_FTE_per - vPrev_qtr_Vois_FTE_per);
-//		vVois_Cost = Math.round(vCurr_qtr_Vois_Cost - vPrev_qtr_Vois_Cost);
-//		vVois_Spend = Math.round(vCurr_qtr_Vois_Spend - vPrev_qtr_Vois_Spend);
+	// Vois
+	vVois_FTE = Math.round(vCurr_qtr_Vois_FTE - vPrev_qtr_Vois_FTE);
+	vVois_FTE_per = Math.round(vCurr_qtr_Vois_FTE_per - vPrev_qtr_Vois_FTE_per);
+	vVois_Cost = Math.round(vCurr_qtr_Vois_Cost - vPrev_qtr_Vois_Cost);
+	vVois_Spend = Math.round(vCurr_qtr_Vois_Spend - vPrev_qtr_Vois_Spend);
 	
-//		// Contractor
-//		vContractor_FTE = Math.round(vCurr_qtr_Contractor_FTE - vPrev_qtr_Contractor_FTE);
-//		vContractor_FTE_per = Math.round(vCurr_qtr_Contractor_FTE_per - vPrev_qtr_Contractor_FTE_per);
-//		vContractor_Cost = Math.round(vCurr_qtr_Contractor_Cost - vPrev_qtr_Contractor_Cost);
-//		vContractor_Spend = Math.round(vCurr_qtr_Contractor_Spend - vPrev_qtr_Contractor_Spend);
+	// Contractor
+	vContractor_FTE = Math.round(vCurr_qtr_Contractor_FTE - vPrev_qtr_Contractor_FTE);
+	vContractor_FTE_per = Math.round(vCurr_qtr_Contractor_FTE_per - vPrev_qtr_Contractor_FTE_per);
+	vContractor_Cost = Math.round(vCurr_qtr_Contractor_Cost - vPrev_qtr_Contractor_Cost);
+	vContractor_Spend = Math.round(vCurr_qtr_Contractor_Spend - vPrev_qtr_Contractor_Spend);
 	
-//	}
-
-/*****************************************************
- * READ SELECTED QUARTER
- *****************************************************/
-var QtrSelected = InputControl_qtr
-  .getInputControlDataSource()
-  .getActiveSelectedMembers();
-
-console.log("Selected Quarter:", QtrSelected);
-
-if (QtrSelected.length === 0) {
-  console.log("No quarter selected. Script stopped.");
-  return;
 }
 
-var qtrSel = QtrSelected[0].id;
-console.log("Quarter ID:", qtrSel);
-
-/*****************************************************
- * BUILD ROLLING QUARTERS (CURRENT + PREV YEAR)
- *****************************************************/
-var currentQ = ConvertUtils.stringToInteger(qtrSel.slice(1, 2));
-var currentY = ConvertUtils.stringToInteger(qtrSel.slice(3, 5));
-
-var tempQ = currentQ;
-var tempY = currentY;
-
-var rollingQuarters = ArrayUtils.create(Type.string);
-
-for (var i = 0; i < 5; i++) {
-  var formatted = "Q" + tempQ + "-" + tempY;
-  rollingQuarters.push(formatted);
-
-  tempQ--;
-  if (tempQ === 0) {
-    tempQ = 4;
-    tempY--;
-  }
-}
-
-console.log("Rolling Quarters:", rollingQuarters);
-
-/*****************************************************
- * APPLY FILTERS
- *****************************************************/
-Table_qtr_3.getDataSource().setDimensionFilter("Quarter", rollingQuarters);
-Table_qtr_3.getDataSource().refreshData();   // 🔴 REQUIRED
-
-/*****************************************************
- * INITIALIZE VARIABLES
- *****************************************************/
-
-  vCurr_qtr_Total_FTE = vPrev_qtr_Total_FTE = 0;
-  vCurr_qtr_Onshore_FTE = vPrev_qtr_Onshore_FTE = 0;
-  vCurr_qtr_External_FTE = vPrev_qtr_External_FTE = 0;
-  vCurr_qtr_Contractor_FTE = vPrev_qtr_Contractor_FTE = 0;
-  vCurr_qtr_Vois_FTE = vPrev_qtr_Vois_FTE = 0;
-
-  vCurr_qtr_Total_Spend = vPrev_qtr_Total_Spend = 0;
-  vCurr_qtr_Onshore_Spend = vPrev_qtr_Onshore_Spend = 0;
-  vCurr_qtr_External_Spend = vPrev_qtr_External_Spend = 0;
-  vCurr_qtr_Contractor_Spend = vPrev_qtr_Contractor_Spend = 0;
-  vCurr_qtr_Vois_Spend = vPrev_qtr_Vois_Spend = 0;
-
-  vCurr_qtr_Total_FTE_per = vPrev_qtr_Total_FTE_per = 0;
-  vCurr_qtr_Onshore_FTE_per = vPrev_qtr_Onshore_FTE_per = 0;
-  vCurr_qtr_External_FTE_per = vPrev_qtr_External_FTE_per = 0;
-  vCurr_qtr_Contractor_FTE_per = vPrev_qtr_Contractor_FTE_per = 0;
-  vCurr_qtr_Vois_FTE_per = vPrev_qtr_Vois_FTE_per = 0;
-
-  vCurr_qtr_Total_Cost = vPrev_qtr_Total_Cost = 0;
-  vCurr_qtr_Onshore_Cost = vPrev_qtr_Onshore_Cost = 0;
-  vCurr_qtr_External_Cost = vPrev_qtr_External_Cost = 0;
-  vCurr_qtr_Contractor_Cost = vPrev_qtr_Contractor_Cost = 0;
-  vCurr_qtr_Vois_Cost = vPrev_qtr_Vois_Cost = 0;
-
-
-/*****************************************************
- * READ RESULT SET
- *****************************************************/
-var selQtr = rollingQuarters[0];
-var prevYearQtr = rollingQuarters[4];
-
-var data = Table_qtr_3.getDataSource().getResultSet();
-console.log(data.length);
-
-if (data.length === 0) {
-  console.log("No data returned. Script stopped.");
-  return;
-}
-
-/*****************************************************
- * LOOP SAFELY THROUGH DATA
- *****************************************************/
-for (var j = 0; j < data.length; j++) {
-
-  var row = data[j];
-  var qtrID = row["Quarter"].id;
-var kpiID = "";
-
-if (row["SourceType"]) {
-    kpiID = row["SourceType"].id;
-} else {
-    kpiID = "";
-}
-  var measureID = row[Alias.MeasureDimension].id;
-  var val = ConvertUtils.stringToNumber(row[Alias.MeasureDimension].rawValue);
-
-
-
-  var isCurr = qtrID === selQtr;
-  var isPrev = qtrID === prevYearQtr;
-
-  // ================= FTE =================
-
-// ===================== FTE =====================
-if ((measureID === "FTE")) {
-
-    if ((isCurr) && (kpiID === "Total")) {
-        vCurr_qtr_Total_FTE = val;
-    }
-
-    if ((isPrev) && (kpiID === "Total")) {
-        vPrev_qtr_Total_FTE = val;
-    }
-
-    if ((isCurr) && (kpiID === "Onshore internal")) {
-        vCurr_qtr_Onshore_FTE = val;
-    }
-
-    if ((isPrev) && (kpiID === "Onshore internal")) {
-        vPrev_qtr_Onshore_FTE = val;
-    }
-
-    if ((isCurr) && (kpiID === "External")) {
-        vCurr_qtr_External_FTE = val;
-    }
-
-    if ((isPrev) && (kpiID === "External")) {
-        vPrev_qtr_External_FTE = val;
-    }
-
-    if ((isCurr) && (kpiID === "Contractors")) {
-        vCurr_qtr_Contractor_FTE = val;
-    }
-
-    if ((isPrev) && (kpiID === "Contractors")) {
-        vPrev_qtr_Contractor_FTE = val;
-    }
-
-    if ((isCurr) && (kpiID === "Vodafone Subtotal")) {
-        vCurr_qtr_Vois_FTE = val;
-    }
-
-    if ((isPrev) && (kpiID === "Vodafone Subtotal")) {
-        vPrev_qtr_Vois_FTE = val;
-    }
-}
-  // ================= REPEAT SAME PATTERN FOR OTHER MEASURES =================
-  if (measureID === "FTE_Percentage") {
-    if (isCurr && kpiID === "Total"){ vCurr_qtr_Total_FTE_per = val;}
-    if (isPrev && kpiID === "Total") {vPrev_qtr_Total_FTE_per = val;}
-  }
-
-  if (measureID === "Spend_gross_payroll_Eurom") {
-    if (isCurr && kpiID === "Total") {vCurr_qtr_Total_Spend = val;}
-    if (isPrev && kpiID === "Total") {vPrev_qtr_Total_Spend = val;}
-  }
-
-  if (measureID === "Annualised_Cost_per_FTE_Eurok") {
-    if (isCurr && kpiID === "Total") {vCurr_qtr_Total_Cost = val;}
-    if (isPrev && kpiID === "Total") {vPrev_qtr_Total_Cost = val;}
-  }
-}
-
-/*****************************************************
- * FINAL DIFFERENCES
- *****************************************************/
-vTotal_FTE = Math.round(vCurr_qtr_Total_FTE - vPrev_qtr_Total_FTE);
-vTotal_FTE_Per = Math.round(vCurr_qtr_Total_FTE_per - vPrev_qtr_Total_FTE_per);
-vTotal_Spend = Math.round(vCurr_qtr_Total_Spend - vPrev_qtr_Total_Spend);
-vTotal_Cost = Math.round(vCurr_qtr_Total_Cost - vPrev_qtr_Total_Cost);
-
-console.log("✅ Script completed successfully");
